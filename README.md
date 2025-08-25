@@ -105,6 +105,18 @@ This will test all endpoints with sample data and show the results.
 
 ### Manual Testing with curl
 
+To test the Render app, replace
+
+```
+http://localhost:8000
+```
+
+with
+
+```
+https://ddpd-tarea2.onrender.com
+```
+
 **Test single sequence:**
 ```bash
 curl -X POST "http://localhost:8000/predict" \

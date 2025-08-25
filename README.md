@@ -40,7 +40,7 @@ The API will be available at:
 - **Interactive Docs**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 
-## 📡 API Endpoints
+##  API Endpoints
 
 ### 1. Root Endpoint
 - **GET** `/`
@@ -91,7 +91,7 @@ The API will be available at:
 - **GET** `/health`
 - Check API status and readiness
 
-## 🧪 Testing the API
+##  Testing the API
 
 ### Using the Client Script
 
@@ -182,7 +182,7 @@ This API is configured for easy deployment on [Render](https://render.com):
 
 The `render.yaml` file contains the deployment configuration.
 
-## 🧬 How It Works
+## How It Works
 
 1. **K-mer Tokenization**: DNA sequences are converted into overlapping 6-mers (e.g., "ATCGAT" → ["ATCGAT", "TCGATC", "CGATCG"])
 

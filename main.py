@@ -4,6 +4,7 @@ A simple FastAPI service for comparing ASV sequences using k-mer vectorization.
 """
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 
@@ -64,7 +65,7 @@ async def startup_event():
 @app.get("/")
 async def root():
     """Root endpoint with API information."""
-    return {
+    return JSONResponse(content={
         "message": "ASV Sequence Comparison API",
         "version": "1.0.0",
         "description": "Compare ASV sequences using k-mer vectorization",
@@ -74,7 +75,7 @@ async def root():
             "/database/info": "Get database information (GET)",
             "/health": "Health check (GET)"
         }
-    }
+    })
 
 @app.post("/predict")
 async def predict_sequence(query: SequenceQuery):
@@ -85,7 +86,7 @@ async def predict_sequence(query: SequenceQuery):
     """
     try:
         result = query_engine.query_single_sequence(query.sequence, query.top_k)
-        return result
+        return JSONResponse(content=result)
         
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -107,7 +108,7 @@ async def predict_fasta(file: UploadFile = File(...), top_k: int = 5):
         fasta_content = content.decode('utf-8')
         
         result = query_engine.query_fasta_sequences(fasta_content, top_k)
-        return result
+        return JSONResponse(content=result)
         
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -120,7 +121,7 @@ async def get_database_info():
     if not reference_db:
         raise HTTPException(status_code=500, detail="Reference database not loaded")
     
-    return reference_db.get_info()
+    return JSONResponse(content=reference_db.get_info())
 
 @app.get("/health")
 async def health_check():
@@ -128,11 +129,11 @@ async def health_check():
     if not reference_db or not query_engine:
         raise HTTPException(status_code=503, detail="Service not ready")
     
-    return {
+    return JSONResponse(content={
         "status": "healthy",
         "reference_sequences": len(reference_db.sequences),
         "vectorizer_ready": reference_db.vectorizer is not None
-    }
+    })
 
 if __name__ == "__main__":
     import uvicorn

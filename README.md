@@ -4,9 +4,9 @@ This is a prototype tool to quickly compare an DNA sequence from an amplicon stu
 
 ## API
 
-**Deployed API URL**: [https://your-app-name.onrender.com](https://your-app-name.onrender.com)
+**Deployed API URL**: [https://ddpd-tarea2.onrender.com/](https://ddpd-tarea2.onrender.com/)
 
-**API Documentation**: [https://your-app-name.onrender.com/docs](https://your-app-name.onrender.com/docs)
+**API Documentation**: [https://ddpd-tarea2.onrender.com/docs](https://ddpd-tarea2.onrender.com/docs)
 
 ## Tool features
 

@@ -2,10 +2,41 @@
 Query engine for ASV sequence comparison.
 """
 from typing import Dict, Any
-from Bio import SeqIO
 import io
 from model.kmer import cosine_similarity
 from search.database import ReferenceDatabase
+
+
+def parse_fasta_content(fasta_content: str):
+    """Simple FASTA parser for string content without biopython dependency."""
+    sequences = []
+    lines = fasta_content.strip().split('\n')
+    current_id = None
+    current_seq = []
+    
+    for line in lines:
+        line = line.strip()
+        if line.startswith('>'):
+            # Save previous sequence if exists
+            if current_id is not None:
+                sequences.append({
+                    'id': current_id,
+                    'seq': ''.join(current_seq)
+                })
+            # Start new sequence
+            current_id = line[1:]  # Remove '>' character
+            current_seq = []
+        elif line:
+            current_seq.append(line)
+    
+    # Don't forget the last sequence
+    if current_id is not None:
+        sequences.append({
+            'id': current_id,
+            'seq': ''.join(current_seq)
+        })
+    
+    return sequences
 
 
 class SequenceQueryEngine:
@@ -67,14 +98,7 @@ class SequenceQueryEngine:
             Dictionary with query results for all sequences
         """
         # Parse FASTA sequences
-        sequences = []
-        fasta_io = io.StringIO(fasta_content)
-        
-        for record in SeqIO.parse(fasta_io, "fasta"):
-            sequences.append({
-                "sequence_id": record.id,
-                "sequence": str(record.seq)
-            })
+        sequences = parse_fasta_content(fasta_content)
         
         if not sequences:
             raise ValueError("No valid sequences found in FASTA content")
@@ -82,7 +106,7 @@ class SequenceQueryEngine:
         # Process each sequence
         results = []
         for seq_data in sequences:
-            query_vector = self.vectorizer.vectorize(seq_data["sequence"])
+            query_vector = self.vectorizer.vectorize(seq_data["seq"])
             
             # Calculate similarities
             similarities = []
@@ -100,8 +124,8 @@ class SequenceQueryEngine:
             top_matches = similarities[:top_k]
             
             results.append({
-                "query_sequence_id": seq_data["sequence_id"],
-                "query_length": len(seq_data["sequence"]),
+                "query_sequence_id": seq_data["id"],
+                "query_length": len(seq_data["seq"]),
                 "matches": top_matches
             })
         

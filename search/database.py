@@ -4,8 +4,39 @@ Reference database operations for ASV sequence comparison.
 import pickle
 import os
 from typing import Dict, Any
-from Bio import SeqIO
 from model.kmer import KmerVectorizer
+
+
+def parse_fasta(fasta_file: str):
+    """Simple FASTA parser without biopython dependency."""
+    sequences = []
+    with open(fasta_file, 'r') as f:
+        current_id = None
+        current_seq = []
+        
+        for line in f:
+            line = line.strip()
+            if line.startswith('>'):
+                # Save previous sequence if exists
+                if current_id is not None:
+                    sequences.append({
+                        'id': current_id,
+                        'seq': ''.join(current_seq)
+                    })
+                # Start new sequence
+                current_id = line[1:]  # Remove '>' character
+                current_seq = []
+            elif line:
+                current_seq.append(line)
+        
+        # Don't forget the last sequence
+        if current_id is not None:
+            sequences.append({
+                'id': current_id,
+                'seq': ''.join(current_seq)
+            })
+    
+    return sequences
 
 
 class ReferenceDatabase:
@@ -25,12 +56,12 @@ class ReferenceDatabase:
         """
         self.sequences = []
         
-        for record in SeqIO.parse(fasta_file, "fasta"):
+        for record in parse_fasta(fasta_file):
             sequence_data = {
                 "sample_id": "reference",  # Default sample ID
-                "sequence_id": record.id,
-                "sequence": str(record.seq),
-                "taxonomy": taxonomy_mapping.get(record.id) if taxonomy_mapping else None
+                "sequence_id": record['id'],
+                "sequence": record['seq'],
+                "taxonomy": taxonomy_mapping.get(record['id']) if taxonomy_mapping else None
             }
             
             # Vectorize sequence

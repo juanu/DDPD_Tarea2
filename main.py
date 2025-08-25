@@ -2,14 +2,33 @@
 ASV Sequence Comparison API
 A simple FastAPI service for comparing ASV sequences using k-mer vectorization.
 """
+import logging
+import sys
+import traceback
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 
-from search.database import ReferenceDatabase
-from query.engine import SequenceQueryEngine
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
+
+try:
+    from search.database import ReferenceDatabase
+    from query.engine import SequenceQueryEngine
+    logger.info("Successfully imported modules")
+except ImportError as e:
+    logger.error(f"Import error: {e}")
+    logger.error(f"Traceback: {traceback.format_exc()}")
+    raise
 
 app = FastAPI(
     title="ASV Sequence Comparison API",
@@ -46,21 +65,39 @@ def load_reference_database():
     """Load reference database from file."""
     global reference_db, query_engine
     
-    reference_db = ReferenceDatabase(k=6)
-    
-    # Try to load existing database, otherwise create sample database
-    if not reference_db.load("reference_db.pkl"):
-        reference_db.create_sample_database()
-        reference_db.save("reference_db.pkl")
-    
-    # Initialize query engine
-    query_engine = SequenceQueryEngine(reference_db)
+    try:
+        logger.info("Initializing reference database...")
+        reference_db = ReferenceDatabase(k=6)
+        
+        # Try to load existing database, otherwise create sample database
+        if not reference_db.load("reference_db.pkl"):
+            logger.info("No existing database found, creating sample database...")
+            reference_db.create_sample_database()
+            reference_db.save("reference_db.pkl")
+            logger.info("Sample database created and saved")
+        else:
+            logger.info("Existing database loaded successfully")
+        
+        # Initialize query engine
+        query_engine = SequenceQueryEngine(reference_db)
+        logger.info("Query engine initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"Error loading reference database: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize the API on startup."""
-    load_reference_database()
-    print(f"API initialized with {len(reference_db.sequences)} reference sequences")
+    try:
+        logger.info("Starting up API...")
+        load_reference_database()
+        logger.info(f"API initialized with {len(reference_db.sequences)} reference sequences")
+    except Exception as e:
+        logger.error(f"Startup failed: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise
 
 @app.get("/")
 async def root():
@@ -85,12 +122,22 @@ async def predict_sequence(query: SequenceQuery):
     Returns the top-k most similar sequences with similarity scores.
     """
     try:
+        logger.info(f"Processing sequence query: length={len(query.sequence)}, top_k={query.top_k}")
+        
+        if not query_engine:
+            logger.error("Query engine not initialized")
+            raise HTTPException(status_code=503, detail="Service not ready - query engine not initialized")
+        
         result = query_engine.query_single_sequence(query.sequence, query.top_k)
+        logger.info(f"Query completed successfully, found {result.get('matches_found', 0)} matches")
         return JSONResponse(content=result)
         
     except ValueError as e:
+        logger.warning(f"Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Prediction error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
 @app.post("/predict/fasta")
@@ -98,42 +145,66 @@ async def predict_fasta(file: UploadFile = File(...), top_k: int = 5):
     """
     Compare ASV sequences from a FASTA file against the reference database.
     """
-    # Validate file type
-    if not file.filename.lower().endswith(('.fasta', '.fa', '.fas')):
-        raise HTTPException(status_code=400, detail="File must be in FASTA format")
-    
     try:
+        logger.info(f"Processing FASTA file: filename={file.filename}, top_k={top_k}")
+        
+        # Validate file type
+        if not file.filename.lower().endswith(('.fasta', '.fa', '.fas')):
+            logger.warning("Invalid file type")
+            raise HTTPException(status_code=400, detail="File must be in FASTA format")
+        
         # Read file content
         content = await file.read()
         fasta_content = content.decode('utf-8')
         
         result = query_engine.query_fasta_sequences(fasta_content, top_k)
+        logger.info(f"FASTA query completed successfully, found {result.get('matches_found', 0)} matches")
         return JSONResponse(content=result)
         
     except ValueError as e:
+        logger.warning(f"Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"FASTA processing error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"FASTA processing error: {str(e)}")
 
 @app.get("/database/info")
 async def get_database_info():
     """Get information about the reference database."""
-    if not reference_db:
-        raise HTTPException(status_code=500, detail="Reference database not loaded")
-    
-    return JSONResponse(content=reference_db.get_info())
+    try:
+        if not reference_db:
+            logger.error("Reference database not loaded")
+            raise HTTPException(status_code=500, detail="Reference database not loaded")
+        
+        return JSONResponse(content=reference_db.get_info())
+        
+    except Exception as e:
+        logger.error(f"Database info error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Database info error: {str(e)}")
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    if not reference_db or not query_engine:
-        raise HTTPException(status_code=503, detail="Service not ready")
-    
-    return JSONResponse(content={
-        "status": "healthy",
-        "reference_sequences": len(reference_db.sequences),
-        "vectorizer_ready": reference_db.vectorizer is not None
-    })
+    try:
+        if not reference_db or not query_engine:
+            logger.warning("Health check failed - service not ready")
+            raise HTTPException(status_code=503, detail="Service not ready")
+        
+        health_info = {
+            "status": "healthy",
+            "reference_sequences": len(reference_db.sequences),
+            "vectorizer_ready": reference_db.vectorizer is not None,
+            "database_info": reference_db.get_info()
+        }
+        logger.info("Health check passed")
+        return JSONResponse(content=health_info)
+        
+    except Exception as e:
+        logger.error(f"Health check error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
